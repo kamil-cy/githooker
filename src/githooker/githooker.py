@@ -152,7 +152,7 @@ class PreCommit:
             files = self.files_from_git
         files_with_lines: dict[str, list[str]] = {}
         for filename in files:
-            with open(filename) as f:
+            with contextlib.suppress(Exception), open(filename) as f:
                 files_with_lines[filename] = f.readlines()
         return files_with_lines
 
@@ -180,7 +180,9 @@ class PreCommit:
     ) -> int:
         count = 0
         for filename, lines in self.files.items():
-            if filename in self.ignore_files or any([Path(filename).match(p) for p in self.ignore_files]):
+            if filename in self.ignore_files or any(
+                [Path(filename).match(p) for p in self.ignore_files]
+            ):
                 continue
             for num, line in enumerate(lines):
                 _prevent = False

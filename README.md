@@ -56,7 +56,8 @@ def sqrt():
 ```
 
 And when you try to commit this file using `git commit -m "message"` the output will be:
-![output_main_1](docs/outputs/main_1a.svg)
+
+![output_main_1a.png](https://raw.githubusercontent.com/kamil-cy/githooker/main/docs/outputs/main_1a.png)
 
 What happened here? Let's focus only on checks that prevents us from commit this change:
 
@@ -86,7 +87,7 @@ def sqrt(x):
 
 The output after commit will be:
 
-![output_main_1](docs/outputs/main_1b.svg)
+![output_main_1b.png](https://raw.githubusercontent.com/kamil-cy/githooker/main/docs/outputs/main_1b.png)
 
 Now `check_content_for("TODO", "⚠️", "warning", prevent=False)` failed because `TODO` was found in `main_1.py`, yet this is not preventing us from commit changes, so commit command was succeeded but with warning`Commit allowed conditionally.`
 
@@ -111,7 +112,7 @@ def sqrt(x):
 
 Finally we reached our goal:
 
-![output_main_1](docs/outputs/main_1c.svg)
+![output_main_1c.png](https://raw.githubusercontent.com/kamil-cy/githooker/main/docs/outputs/main_1c.png)
 
 ### Ignoring files
 
@@ -146,14 +147,14 @@ pre_commit.check_command("false", rc_zero_succes=False) # ❯ false (OK, RC!=0 S
 
 Run pre-commit file using regular Python's interpreter to detect paths and auto-create a symlink for you repository:
 
-![output_auto_symlink](docs/outputs/auto_symlink.svg)
+![output_auto_symlink.png](https://raw.githubusercontent.com/kamil-cy/githooker/main/docs/outputs/auto_symlink.png)
 
 If a pre-commit file already exists, an additional message <span style="color:yellow">WARNING: file '/home/user/project/.git/hooks/pre-commit' already exists and will be overwritten.</span> will be shown as below
 
-![output_auto_symlink](docs/outputs/auto_symlink_force.svg)
+![output_auto_symlink.png](https://raw.githubusercontent.com/kamil-cy/githooker/main/docs/outputs/auto_symlink_force.png)
 
 In case of any problem you'll get <span style="color:red">Failure, couldn't create the symbolic link.</span> instead of success message.
 
 ## License<a id="license"></a>
 
-This repository is licensed under the [MIT License](https://github.com/kamil-cy/githooker/blob/main/LICENSE)
+This repository is licensed under the [MIT License](LICENSE)
