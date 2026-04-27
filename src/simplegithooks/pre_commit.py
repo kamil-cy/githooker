@@ -97,15 +97,15 @@ class PreCommit:
         force: bool = False,  # noqa: FBT001, FBT002
     ):
         _path_from = Path(path_from)
-        _f = "-f" if force else ""
-        create_symbolic_link_cmd = ["ln", _f, "-s", str(_path_from), str(path_to)]
+        _f = " -f" if force else ""
+        create_symbolic_link_cmd = f"ln{_f} -s {path_from} {path_to}"
         warning = f"WARNING: file '{path_to}' already exists and will be overwritten.\n"
         msg = (
             "To use this Git hook you must either create a symbolic link for"
             " this file or copy it's content to the Git pre-commit hook file.\n"
             f"{fg_yellow}{warning if force else ''}{reset}"
             "Do you want to execute the following command to create the symbolic link?\n"
-            f"  {fg_magenta}{' '.join(create_symbolic_link_cmd)}{reset}\n"
+            f"  {fg_magenta}{create_symbolic_link_cmd}{reset}\n"
             f"Please type '{fg_cyan}CREATE_SYMBOLIC_LINK{reset}' to execute this command (mind underscores): "
         )
         sys.stderr.write(msg)
@@ -116,7 +116,10 @@ class PreCommit:
             return
         if ans.strip() == "CREATE_SYMBOLIC_LINK":
             try:
-                subprocess.check_output(create_symbolic_link_cmd).decode().strip()  # noqa: S603
+                subprocess.check_output(  # noqa: S602
+                    create_symbolic_link_cmd,
+                    shell=True,
+                ).decode().strip()
                 _path_from.chmod(_path_from.stat().st_mode | 64)
             except:  # noqa: E722
                 msg = f"{fg_red}Failure, couldn't create the symbolic link.{reset}\n"
@@ -124,6 +127,9 @@ class PreCommit:
             else:
                 msg = f"{fg_green}Success, the symbolic link was created.{reset}\n"
                 sys.stderr.write(msg)
+        else:
+            msg = f"You've not provided '{fg_cyan}CREATE_SYMBOLIC_LINK{reset}', exiting...\n"
+            sys.stderr.write(msg)
 
     @classmethod
     def run_default_git_hook(cls) -> None:

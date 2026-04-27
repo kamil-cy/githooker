@@ -163,5 +163,3 @@ In case of any problem while creating a symlink you'll get <span style="color:re
 ## License<a id="license"></a>
 
 This repository is licensed under the [MIT License](LICENSE)
-
-![line.png](docs/outputs/line.png)
