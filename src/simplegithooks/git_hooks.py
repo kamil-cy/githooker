@@ -1,5 +1,4 @@
 import contextlib
-import shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -310,22 +309,21 @@ class GitHook:
         _prevent = False
         buffer: str = ""
         buffer = f"{command}"
-        cmd, _, _ = command.partition(" ")
-        if shutil.which(cmd) is None:
-            buffer = f"{fg_white}{bg_red}{buffer} (command '{cmd}' not found!){reset}"
+        execution = subprocess.run(  # noqa: PLW1510, S602
+            command,
+            shell=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=Path(),
+        )
+        if execution.returncode == 127:
+            buffer = f"{fg_white}{bg_red}{buffer} (command not found!){reset}"
             if prevent:
                 self.prevent = True
                 _prevent = True
                 buffer = f"{buffer}{self.locker}"
-            rc = 255
+            rc = 127
         else:
-            execution = subprocess.run(  # noqa: PLW1510, S602
-                command,
-                shell=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                cwd=Path(),
-            )
             non_zero = ", RC!=0 SUCCESS" if not rc_zero_succes else ""
             rc = execution.returncode
             success = rc == 0 if rc_zero_succes else rc != 0
@@ -338,8 +336,8 @@ class GitHook:
                     self.prevent = True
                     _prevent = True
                     buffer = f"{buffer}{self.locker}"
-        result = Result(icon, 1, cmd, buffer, _prevent)
-        self._counters[cmd] = Counter(icon, 1, 0, _prevent)
+        result = Result(icon, 1, command, buffer, _prevent)
+        self._counters[command] = Counter(icon, 1, 0, _prevent)
         self._results.append(result)
         return rc
 
