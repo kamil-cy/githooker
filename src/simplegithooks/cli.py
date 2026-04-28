@@ -7,12 +7,15 @@ from simplegithooks.colors import fg_cyan, fg_red, reset
 from simplegithooks.pre_commit import PreCommit
 
 
-def main():
+def main() -> None:
     hooks = {
         "pre-commit": PreCommit,
     }
     description = "A simple command line interface for Git hooks"
-    parser = argparse.ArgumentParser(description=description, color=True)
+    try:
+        parser = argparse.ArgumentParser(description=description, color=True)
+    except TypeError:
+        parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "hook_name",
         help="A hook name for execution or actions",
