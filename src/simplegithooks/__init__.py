@@ -16,7 +16,7 @@ from .colors import (
     fg_yellow,
     reset,
 )
-from .pre_commit import PreCommit
+from .git_hooks import GitHook, PreCommitConfig, PrePushConfig
 
 __title__ = "simplegithooks"
 
@@ -29,7 +29,9 @@ __author__ = "Kamil Cyganowski"
 __license__ = "MIT"
 __copyright__ = "Copyright 2026 Kamil Cyganowski"
 __all__ = [
-    "PreCommit",
+    "GitHook",
+    "PreCommitConfig",
+    "PrePushConfig",
     "bg_green",
     "bg_red",
     "bg_yellow",

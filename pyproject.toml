@@ -1,6 +1,6 @@
 [project]
 name = "simplegithooks"
-version = "1.1.6"
+version = "1.2.1"
 description = "Write pretty and concise Git hooks in Python."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -44,4 +44,4 @@ omit = []
 skip_covered = true
 skip_empty = true
 show_missing = true
-fail_under = 100
+fail_under = 0

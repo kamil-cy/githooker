@@ -3,7 +3,10 @@
 Write pretty and concise Git hooks in Python. SimpleGitHooks lets you write an entire Git hook directly in Python, without using YAML. It’s ideal when you want full control and all your logic contained in a single file.
 
 - [Installing](#installing)
-- [PreCommit](#precommit)
+- [Hooks](#hooks)
+  - [PreCommit](#precommit)
+  - [PrePush](#prepush)
+- [Common config](#common-config)
   - [Ignoring files](#ignoring-files)
     - [Support for Python's pathlib.Path pattern matching](#support-for-pythons-pathlibpath-pattern-matching)
   - [Filter results](#filter-results)
@@ -20,7 +23,9 @@ You can install via `pip`:
 pip install simplegithooks
 ```
 
-## PreCommit
+## Hooks
+
+### PreCommit
 
 Write simple pre-commit Git hook in your `.git/hooks/pre-commit`:
 
@@ -115,6 +120,30 @@ Finally we reached our goal:
 
 ![output_main_1c.png](https://raw.githubusercontent.com/kamil-cy/simplegithooks/main/docs/outputs/main_1c.png)
 
+### PrePush
+
+Write simple pre-push Git hook in your `.git/hooks/pre-push`:
+
+```python
+#!/usr/bin/env python
+import sys
+
+from simplegithooks import GitHook, PrePushConfig
+
+pre_push = GitHook(__file__, PrePushConfig())
+pre_push.add_ignored_files(["pre_push_example.py", "*.svg", "README.md"])
+pre_push.check_command("rm -rf build/")
+pre_push.check_command("rm -rf dist/")
+pre_push.check_command("pytest")
+print(pre_push.results())
+print(pre_push.summary())
+sys.exit(pre_push.rc)
+```
+
+You'll get similar outputs like for pre-commit.
+
+## Common config
+
 ### Ignoring files
 
 ```python
@@ -146,11 +175,11 @@ pre_commit.check_command("false", rc_zero_succes=False) # ❯ false (OK, RC!=0 S
 
 ## Creating a symlink
 
-Run `simplegithooks pre-commit --install path/to/pre_commit.py` to create a symlink for you repository:
+Run `simplegithooks pre-commit --install path/to/pre_commit.py` or `simplegithooks pre-push --install path/to/pre_push.py` to create a symlink for you repository:
 
 ![output_create_symlink.png](https://raw.githubusercontent.com/kamil-cy/simplegithooks/main/docs/outputs/create_symlink.png)
 
-If a pre-commit file already exists, an additional message <span style="color:yellow">WARNING: file '/home/user/project/.git/hooks/pre-commit' already exists and will be overwritten.</span> will be shown as below
+If a hook file already exists, an additional message e.g. <span style="color:yellow">WARNING: file '/home/user/project/.git/hooks/pre-commit' already exists and will be overwritten.</span> will be shown as below
 
 ![output_create_symlink.png](https://raw.githubusercontent.com/kamil-cy/simplegithooks/main/docs/outputs/create_symlink_force.png)
 

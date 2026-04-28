@@ -3,9 +3,9 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from .colors import (
     bg_green,
@@ -18,15 +18,9 @@ from .colors import (
     fg_red,
     fg_white,
     fg_yellow,
+    is_cli,
     reset,
 )
-
-CALLBACKS: dict[str, Callable[[], Any]] = {
-    "locker": lambda: f"{blink} 🔒{reset}",
-    "aborted": lambda: f"🔴 {blink}{fg_white}{bg_red}Commit aborted.{reset}",
-    "conditionally": lambda: f"🟡 {fg_white}{bg_yellow}Commit allowed conditionally.{reset}",
-    "clean": lambda: f"🟢 {fg_white}{bg_green}Commit allowed.{reset}",
-}
 
 
 @dataclass
@@ -46,47 +40,119 @@ class Result:
     preventing: bool
 
 
-class PreCommit:
-    def __init__(  # noqa: PLR0913
+@dataclass
+class PreCommitConfig:
+    command: list[str] = field(
+        default_factory=lambda: [
+            "git",
+            "diff",
+            "--cached",
+            "--name-only",
+        ],
+    )
+    callbacks: dict[str, Callable[[], Any]] = field(
+        default_factory=lambda: {
+            "locker": lambda: None,
+            "aborted": lambda: None,
+            "caution": lambda: None,
+            "clean": lambda: None,
+            "as_git_hook": lambda: None,
+            "as_script": lambda: None,
+        },
+    )
+    outputs: dict[str, str] = field(
+        default_factory=lambda: {
+            "locker": f"{blink} 🔒{reset}",
+            "aborted": f"🔴 {blink}{fg_white}{bg_red}Commit aborted.{reset}\n",
+            "caution": f"🟡 {fg_white}{bg_yellow}Commit allowed (caution).{reset}\n",
+            "clean": f"🟢 {fg_white}{bg_green}Commit clean.{reset}\n",
+        },
+    )
+
+
+@dataclass
+class PrePushConfig:
+    command: list[str] = field(
+        default_factory=lambda: [
+            "git",
+            "diff",
+            "--name-only",
+            "@{u}..HEAD",
+        ],
+    )
+    callbacks: dict[str, Callable[[], Any]] = field(
+        default_factory=lambda: {
+            "locker": lambda: None,
+            "aborted": lambda: None,
+            "caution": lambda: None,
+            "clean": lambda: None,
+            "as_git_hook": lambda: None,
+            "as_script": lambda: None,
+        },
+    )
+    outputs: dict[str, str] = field(
+        default_factory=lambda: {
+            "locker": f"{blink} 🔒{reset}",
+            "aborted": f"🔴 {blink}{fg_white}{bg_red}Push aborted.{reset}\n",
+            "caution": f"🟡 {fg_white}{bg_yellow}Push allowed (caution).{reset}\n",
+            "clean": f"🟢 {fg_white}{bg_green}Push clean.{reset}\n",
+        },
+    )
+
+
+class HookConfig(Protocol):
+    command: list[str]
+    callbacks: dict[str, Callable[[], Any]]
+    outputs: dict[str, str]
+
+
+class GitHook:
+    def __init__(
         self,
-        pre_commit_file_path: str,
+        hook_file_path: str,
+        hook_config: HookConfig,
         ignore_files: list[Path | str] | None = None,
-        callback_locker: Callable[[], Any] = CALLBACKS["locker"],
-        callback_aborted: Callable[[], Any] = CALLBACKS["aborted"],
-        callback_conditionally: Callable[[], Any] = CALLBACKS["conditionally"],
-        callback_clean: Callable[[], Any] = CALLBACKS["clean"],
     ) -> None:
-        self.pre_commit_file_path = Path(pre_commit_file_path)
+        self.hook_file_path = Path(hook_file_path)
+        self.hook_config = hook_config
         self.ignore_files: list[Path | str] = ignore_files or []
-        self.callback_locker = callback_locker
+        self.locker = self.hook_config.outputs.get("locker", "")
         self.lockdown: bool = False
-        self.files_from_git = self.get_staged_files_from_git()
+        self.files_from_git = self.get_files_from_command()
         self.files: dict[str, list[str]] = self.get_files_with_lines()
         self._counters: dict[str, Counter] = {}
         self._results: list[Result] = []
-        self.callback_aborted: Callable[[], Any] = callback_aborted
-        self.callback_conditionally: Callable[[], Any] = callback_conditionally
-        self.callback_clean: Callable[[], Any] = callback_clean
+        self.caution: bool = False
         self.prevent: bool = False
-        self.init_event(pre_commit_file_path)
+        self._buffer: str = ""
+        self.init_event(hook_file_path)
 
     @staticmethod
-    def get_pre_commit_path_absolute() -> Path:
-        git_cmd = ["git", "rev-parse", "--git-path", "hooks/pre-commit"]
-        pre_commit_path_relative = subprocess.check_output(git_cmd).decode().strip()  # noqa: S603
-        return Path().cwd() / pre_commit_path_relative
+    def hook_path_absolute(hook_name: str) -> Path:
+        git_cmd = ["git", "rev-parse", "--git-path", f"hooks/{hook_name}"]
+        hook_path_relative = subprocess.check_output(git_cmd).decode().strip()  # noqa: S603
+        return Path().cwd() / hook_path_relative
 
     @classmethod
-    def install_git_hook(cls, path_from: Path | str) -> None:
-        pre_commit_path_absolute = PreCommit.get_pre_commit_path_absolute()
-        if pre_commit_path_absolute.exists() or pre_commit_path_absolute.is_symlink():
+    def run_default_git_hook(cls, hook_name: str) -> None:
+        hook_path_absolute = GitHook.hook_path_absolute(hook_name)
+        if not hook_path_absolute.exists():
+            msg = f"{fg_yellow}Hook '{fg_magenta}{hook_name}{fg_yellow}' not found in {fg_magenta}'.git/hooks'{fg_yellow} directory!{reset}"
+            print(msg)
+            sys.exit(1)
+        subprocess.run(hook_path_absolute, check=False)  # noqa: S603
+
+    @classmethod
+    def install_git_hook(cls, path_from: Path | str, hook_name: str) -> None:
+        hook_path_absolute = GitHook.hook_path_absolute(hook_name)
+        if hook_path_absolute.exists() or hook_path_absolute.is_symlink():
             cls.create_symbolic_link(
                 path_from,
-                str(pre_commit_path_absolute),
+                str(hook_path_absolute),
                 force=True,
             )
         else:
-            cls.create_symbolic_link(path_from, str(pre_commit_path_absolute))
+            cls.create_symbolic_link(path_from, str(hook_path_absolute))
         cls.lockdown = True
 
     @classmethod
@@ -94,7 +160,7 @@ class PreCommit:
         cls,
         path_from: Path | str,
         path_to: str,
-        force: bool = False,  # noqa: FBT001, FBT002
+        force: bool = False,
     ):
         _path_from = Path(path_from)
         _f = " -f" if force else ""
@@ -102,7 +168,7 @@ class PreCommit:
         warning = f"WARNING: file '{path_to}' already exists and will be overwritten.\n"
         msg = (
             "To use this Git hook you must either create a symbolic link for"
-            " this file or copy it's content to the Git pre-commit hook file.\n"
+            " this file or copy it's content to the Git hook file.\n"
             f"{fg_yellow}{warning if force else ''}{reset}"
             "Do you want to execute the following command to create the symbolic link?\n"
             f"  {fg_magenta}{create_symbolic_link_cmd}{reset}\n"
@@ -131,11 +197,6 @@ class PreCommit:
             msg = f"You've not provided '{fg_cyan}CREATE_SYMBOLIC_LINK{reset}', exiting...\n"
             sys.stderr.write(msg)
 
-    @classmethod
-    def run_default_git_hook(cls) -> None:
-        pre_commit_path_absolute = PreCommit.get_pre_commit_path_absolute()
-        subprocess.run(pre_commit_path_absolute, check=False)  # noqa: S603
-
     def __getattribute__(self, name: str):
         attr = object.__getattribute__(self, name)
         if callable(attr) and not name.startswith("_"):
@@ -148,17 +209,26 @@ class PreCommit:
             return wrapper
         return attr
 
-    def init_event(self, pre_commit_file__path: str) -> None:
-        if pre_commit_file__path.endswith(".git/hooks/pre-commit"):
-            self.on_call_as_git_hook()
+    def buffer_write(self, text: str) -> None:
+        self._buffer = f"{self._buffer}{text}"
+
+    def buffer_read(self) -> str:
+        return self._buffer
+
+    def notify(self, text: str | None = None) -> None:
+        if text is None:
+            text = self.buffer_read()
+        if not is_cli():
+            with contextlib.suppress(Exception):
+                subprocess.run(["zenity", "--notification", f"--text={text}"])  # noqa: PLW1510, S603, S607
+
+    def init_event(self, hook_file_path: str) -> None:
+        as_hook = self.hook_config.callbacks.get("as_git_hook", lambda: None)
+        as_script = self.hook_config.callbacks.get("as_script", lambda: None)
+        if ".git/hooks/" in hook_file_path:
+            as_hook()
         else:
-            self.on_call_as_script()
-
-    def on_call_as_git_hook(self) -> None:
-        pass
-
-    def on_call_as_script(self) -> None:
-        pass
+            as_script()
 
     def get_files_with_lines(
         self,
@@ -172,8 +242,8 @@ class PreCommit:
                 files_with_lines[filename] = f.readlines()
         return files_with_lines
 
-    def get_staged_files_from_git(self) -> list[str]:
-        command = ["git", "diff", "--cached", "--name-only", "--diff-filter=AM"]
+    def get_files_from_command(self) -> list[str]:
+        command = self.hook_config.command
         return subprocess.check_output(command).decode().split()  # noqa: S603
 
     def add_ignored_file(self, path: Path | str | None = None) -> None:
@@ -192,7 +262,7 @@ class PreCommit:
         icon: str,
         category: str,
         icon_space: int = 1,
-        prevent: bool = True,  # noqa: FBT001, FBT002
+        prevent: bool = True,
     ) -> int:
         count = 0
         for filename, lines in self.files.items():
@@ -203,12 +273,13 @@ class PreCommit:
             for n, line in enumerate(lines, start=1):
                 _prevent = False
                 if substring in line:
+                    self.caution = True
                     count += 1
                     if prevent:
                         self.prevent = True
                         _prevent = True
                         msg = f"{fg_red}'{substring}' found in {filename}:{n}{reset}"
-                        msg = f"{msg}{self.callback_locker()}"
+                        msg = f"{msg}{self.locker}"
                     else:
                         msg = f"{fg_yellow}'{substring}' found in {filename}:{n}{reset}"
                     result = Result(icon, icon_space, category, msg, _prevent)
@@ -222,13 +293,18 @@ class PreCommit:
                             _prevent,
                         )
                     self._results.append(result)
+        if count == 0:
+            self._counters[category] = Counter(icon, icon_space, 1, False)
+            msg = f"{fg_green}{substring} not found{reset}"
+            result = Result(icon, icon_space, category, msg, False)
+            self._results.append(result)
         return count
 
     def check_command(
         self,
         command: str,
-        prevent: bool = True,  # noqa: FBT001, FBT002
-        rc_zero_succes: bool = True,  # noqa: FBT001, FBT002
+        prevent: bool = True,
+        rc_zero_succes: bool = True,
         icon: str = "❯",  # noqa: RUF001
     ) -> int:
         _prevent = False
@@ -240,7 +316,7 @@ class PreCommit:
             if prevent:
                 self.prevent = True
                 _prevent = True
-                buffer = f"{buffer}{self.callback_locker()}"
+                buffer = f"{buffer}{self.locker}"
             rc = 255
         else:
             execution = subprocess.run(  # noqa: PLW1510, S602
@@ -257,10 +333,11 @@ class PreCommit:
                 buffer = f"{fg_green}{buffer} (OK{non_zero}){reset}"
             else:
                 buffer = f"{fg_red}{buffer} (ERROR{non_zero}){reset}"
+                self.caution = True
                 if prevent:
                     self.prevent = True
                     _prevent = True
-                    buffer = f"{buffer}{self.callback_locker()}"
+                    buffer = f"{buffer}{self.locker}"
         result = Result(icon, 1, cmd, buffer, _prevent)
         self._counters[cmd] = Counter(icon, 1, 0, _prevent)
         self._results.append(result)
@@ -270,7 +347,7 @@ class PreCommit:
         self,
         category: str | None = None,
         indent: int = 2,
-        preventing_only: bool = False,  # noqa: FBT001, FBT002
+        preventing_only: bool = False,
     ) -> str:
         result: str = "Results:\n"
         if category is None:
@@ -278,13 +355,14 @@ class PreCommit:
                 result = f"{result}{self._results_for(key, indent, preventing_only)}"
         else:
             result = f"{result}{self._results_for(category, indent, preventing_only)}"
+        self.buffer_write(result)
         return result
 
     def _results_for(
         self,
         category: str | None = None,
         indent: int = 2,
-        preventing_only: bool = False,  # noqa: FBT001, FBT002
+        preventing_only: bool = False,
     ) -> str:
         result: str = ""
         for r in self._results:
@@ -302,24 +380,37 @@ class PreCommit:
         for category, counter in self._counters.items():
             if not counter.preventing:
                 continue
+            msg = f"{fg_red}{' ' * indent}{counter.icon}{' ' * counter.icon_space}"
             if counter.count:
-                msg = f"{' ' * indent}{counter.icon}{' ' * counter.icon_space}{counter.count} ({category})\n"
+                msg = f"{msg}{counter.count} ({category})\n"
             else:
-                msg = f"{' ' * indent}{counter.icon}{' ' * counter.icon_space}{category}\n"
-            result = f"{result}{msg}"
+                msg = f"{msg}{category}\n"
+            result = f"{result}{msg}{reset}"
             empty = False
         if empty:
-            result = f"{result}{' ' * indent}(nothing prevents from committing)\n"
+            result = f"{result}{fg_green}{' ' * indent}(nothing prevents from proceeding){reset}\n"
+        self.buffer_write(result)
         return result
 
     @property
     def rc(self) -> int:
         if self.prevent:
-            sys.stderr.write(f"{self.callback_aborted()}\n")
+            msg = self.hook_config.outputs.get("aborted", "")
+            sys.stderr.write(msg)
+            self.buffer_write(msg)
+            self.notify()
+            self.hook_config.callbacks.get("aborted", lambda: None)()
             return 1
-        counts = [c.count for c in self._counters.values()]
-        if sum(counts):
-            sys.stderr.write(f"{self.callback_conditionally()}\n")
+        if self.caution:
+            msg = self.hook_config.outputs.get("caution", "")
+            sys.stderr.write(msg)
+            self.buffer_write(msg)
+            self.notify()
+            self.hook_config.callbacks.get("caution", lambda: None)()
             return 0
-        sys.stderr.write(f"{self.callback_clean()}\n")
+        msg = self.hook_config.outputs.get("clean", "")
+        sys.stderr.write(msg)
+        self.buffer_write(msg)
+        self.notify()
+        self.hook_config.callbacks.get("clean", lambda: None)()
         return 0
