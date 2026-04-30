@@ -159,7 +159,7 @@ class GitHook:
         cls,
         path_from: Path | str,
         path_to: str,
-        force: bool = False,
+        force: bool = False,  # noqa: FBT001, FBT002
     ):
         _path_from = Path(path_from)
         _f = " -f" if force else ""
@@ -261,7 +261,7 @@ class GitHook:
         icon: str,
         category: str,
         icon_space: int = 1,
-        prevent: bool = True,
+        prevent: bool = True,  # noqa: FBT001, FBT002
     ) -> int:
         count = 0
         for filename, lines in self.files.items():
@@ -302,8 +302,8 @@ class GitHook:
     def check_command(
         self,
         command: str,
-        prevent: bool = True,
-        rc_zero_succes: bool = True,
+        prevent: bool = True,  # noqa: FBT001, FBT002
+        rc_zero_succes: bool = True,  # noqa: FBT001, FBT002
         icon: str = "❯",  # noqa: RUF001
     ) -> int:
         _prevent = False
@@ -316,7 +316,7 @@ class GitHook:
             stderr=subprocess.DEVNULL,
             cwd=Path(),
         )
-        if execution.returncode == 127:
+        if execution.returncode == 127:  # noqa: PLR2004
             buffer = f"{fg_white}{bg_red}{buffer} (command not found!){reset}"
             if prevent:
                 self.prevent = True
@@ -345,7 +345,7 @@ class GitHook:
         self,
         category: str | None = None,
         indent: int = 2,
-        preventing_only: bool = False,
+        preventing_only: bool = False,  # noqa: FBT001, FBT002
     ) -> str:
         result: str = "Results:\n"
         if category is None:
@@ -360,7 +360,7 @@ class GitHook:
         self,
         category: str | None = None,
         indent: int = 2,
-        preventing_only: bool = False,
+        preventing_only: bool = False,  # noqa: FBT001, FBT002
     ) -> str:
         result: str = ""
         for r in self._results:

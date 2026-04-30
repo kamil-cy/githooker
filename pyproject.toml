@@ -1,7 +1,7 @@
 [project]
 name = "simplegithooks"
-version = "1.2.3"
-description = "Write pretty and concise Git hooks in Python."
+version = "1.2.3.post0"
+description = "Deprecated: project moved to githooks. | Write pretty and concise Git hooks in Python."
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{"name"="Kamil Cyganowski", email="kamil.cyganowski@gmail.com"}]
