@@ -1,3 +1,5 @@
+![❤️ Made by human](https://raw.githubusercontent.com/kamil-cy/badges/main/svg/made_by_human_red_heart.svg)
+
 > [!IMPORTANT]
 > This project has been renamed from `SimpleGitHooks` to `GitHooks` and moved to a new repository https://github.com/kamil-cy/githooks
 >
